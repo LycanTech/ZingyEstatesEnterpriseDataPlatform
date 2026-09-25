@@ -6,4 +6,4 @@ datadog==0.53.0
 pytest==8.3.3
 ruff==0.16.8
 build==1.6.1
-pre-commit==4.0.1
+pre-commit==4.6.2
