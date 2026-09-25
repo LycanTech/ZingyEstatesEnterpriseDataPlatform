@@ -176,7 +176,8 @@ jobs:
           bash scripts/setup-unity-catalog.sh "$TARGET" "$STORAGE_ACCOUNT_NAME" "$DATABRICKS_ACCESS_CONNECTOR_ID"
 
           databricks secrets create-scope zingy-platform 2>/dev/null || true
-          databricks secrets put-secret zingy-platform datadog-api-key --string-value "$DD_API_KEY"
+          # Value via stdin, not argv, so it never appears in process listings or traces.
+          printf '%s' "$DD_API_KEY" | databricks secrets put-secret zingy-platform datadog-api-key
 
           cd databricks
           databricks bundle validate -t "$TARGET" --var storage_account="$STORAGE_ACCOUNT_NAME"

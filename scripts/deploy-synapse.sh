@@ -26,9 +26,11 @@ sleep 30 # rule propagation
 
 run() { # server database file
   echo "  -> $3 on $1/$2"
+  # $(MasterKeyPassword) is resolved from the environment rather than passed
+  # with -v, so the secret never appears on the command line.
+  MasterKeyPassword="$SYNAPSE_MASTER_KEY_PASSWORD" \
   sqlcmd -S "$1" -d "$2" "${AUTH[@]}" -b -I -i "$3" \
-    -v StorageAccount="$STORAGE_ACCOUNT" AdfName="$ADF_NAME" \
-       ReportingGroupName="$REPORTING_GROUP_NAME" MasterKeyPassword="$SYNAPSE_MASTER_KEY_PASSWORD"
+    -v StorageAccount="$STORAGE_ACCOUNT" AdfName="$ADF_NAME" ReportingGroupName="$REPORTING_GROUP_NAME"
 }
 
 query() { # server database sql

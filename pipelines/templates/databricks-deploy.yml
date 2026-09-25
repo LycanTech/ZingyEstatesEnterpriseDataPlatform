@@ -36,7 +36,8 @@ steps:
 
       # Datadog key for the job clusters (spark_env_vars reads it from this scope).
       databricks secrets create-scope zingy-platform 2>/dev/null || true
-      databricks secrets put-secret zingy-platform datadog-api-key --string-value "$DD_API_KEY"
+      # Value via stdin, not argv, so it never appears in process listings or traces.
+      printf '%s' "$DD_API_KEY" | databricks secrets put-secret zingy-platform datadog-api-key
 
       cd databricks
       databricks bundle validate -t ${{ parameters.environment }} --var storage_account=$(STORAGE_ACCOUNT_NAME)
