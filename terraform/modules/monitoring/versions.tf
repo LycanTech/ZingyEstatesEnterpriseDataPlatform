@@ -4,7 +4,7 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 4.14"
+      version = ">= 4.14" # upper bound is set by the root module (terraform/versions.tf)
     }
   }
 }

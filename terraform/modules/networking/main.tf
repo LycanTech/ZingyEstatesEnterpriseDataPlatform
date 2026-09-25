@@ -111,9 +111,8 @@ resource "azurerm_private_dns_zone" "this" {
 resource "azurerm_private_dns_zone_virtual_network_link" "this" {
   for_each = azurerm_private_dns_zone.this
 
-  name                  = "link-${var.name}-${each.key}"
-  resource_group_name   = var.resource_group_name
-  private_dns_zone_name = each.value.name
-  virtual_network_id    = azurerm_virtual_network.this.id
-  tags                  = var.tags
+  name                = "link-${var.name}-${each.key}"
+  private_dns_zone_id = each.value.id
+  virtual_network_id  = azurerm_virtual_network.this.id
+  tags                = var.tags
 }
