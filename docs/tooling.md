@@ -10,15 +10,17 @@ Every tool the platform uses, where it runs, and how you get it. The fastest pat
 | Docker Desktop | ≥ 24 | Local Spark runtime (`docker-compose.yml`), dev container | docker.com |
 | VS Code + Dev Containers | latest | One-click full toolchain | code.visualstudio.com |
 | Terraform | 1.9.x (≥ 1.6) | Azure + Datadog infrastructure | dev container feature / hashicorp.com |
+| azurerm / Datadog providers | ~> 5.6 / ~> 3.70 | Terraform providers (`terraform/versions.tf`, `datadog/provider.tf`) | `terraform init` |
 | TFLint + azurerm ruleset | 0.53 / 0.27 | Terraform linting (`.tflint.hcl`) | dev container feature |
 | Checkov | 3.2 | IaC security scanning (`.checkov.yml`) | `pip install checkov` |
 | Azure CLI | ≥ 2.60 | Auth, bootstrap, smoke tests | dev container feature |
 | Python | 3.11 | PySpark package, tests | dev container image |
 | Java (OpenJDK) | 17 | Local Spark | dev container feature / Docker image |
 | PySpark / delta-spark | 3.5.3 / 3.2.1 | Local Spark + Delta, same as DBR 15.4 LTS | `requirements-dev.txt` |
-| Ruff | 0.7 | Python lint + format | `requirements-dev.txt` |
-| pytest | 8.3 | Unit + Spark tests | `requirements-dev.txt` |
-| pre-commit | 4.0 | Git hooks (`.pre-commit-config.yaml`) | `requirements-dev.txt` |
+| datadog (Python) | 0.53 | Metrics from the PySpark jobs | `requirements-dev.txt`, `databricks/pyproject.toml` |
+| Ruff | 0.16 | Python lint + format | `requirements-dev.txt` |
+| pytest | 9.1 | Unit + Spark tests | `requirements-dev.txt` |
+| pre-commit | 4.6 | Git hooks (`.pre-commit-config.yaml`) | `requirements-dev.txt` |
 | Databricks CLI | ≥ 0.230 | Asset Bundles, Unity Catalog setup | `post-create.sh` |
 | Node.js | 20 LTS | ADF validate/export (`adf/package.json`) | dev container feature |
 | go-sqlcmd | 1.8 | Synapse SQL deployment | `post-create.sh` |

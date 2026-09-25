@@ -60,7 +60,35 @@ There are two equivalent implementations. Use either one, or both.
 | Approvals | GitHub environments `uat`, `prod` | Azure DevOps environments |
 | Setup guide | [docs/cicd-github-actions.md](docs/cicd-github-actions.md) | [docs/environments.md](docs/environments.md) |
 
-CI needs no credentials and runs as soon as the code is pushed. CD stays off until the `DEPLOY_ENABLED` repository variable is set to `true`.
+CI needs no credentials and runs on every push and pull request. It runs these checks:
+
+- **Terraform** (Azure and Datadog): `fmt`, `validate`, TFLint
+- **Security**: Checkov IaC scan (exceptions justified in `.checkov.yml`) and a Gitleaks secret scan
+- **Python**: Ruff lint and format, pytest (unit and Spark tests on Java 17), wheel build
+- **Data Factory**: validate every resource and export the ARM template
+
+CD stays off until the `DEPLOY_ENABLED` repository variable is set to `true`.
+
+## Secrets and sensitive values
+
+The repository contains no credentials, tenant or subscription IDs, or connection strings. Committed files hold only non-secret configuration and all-zero placeholder IDs. Sensitive values live in:
+
+| Value | Stored in | Reaches the code via |
+|---|---|---|
+| Azure identity for deployments | OIDC federated credential / workload identity service connection | Short-lived tokens. No client secret. |
+| Tenant IDs, subscription IDs, group object IDs | GitHub environment variables / Azure DevOps variable groups | `ARM_*` and `TF_VAR_*` environment variables |
+| Datadog keys, Datadog Azure app secret, Synapse master key password | GitHub environment secrets / secret variable groups | Environment variables. The Terraform variables are marked `sensitive`, so plans redact them. |
+| Source-system credentials (CRM, listings API) | Azure Key Vault | Data Factory Key Vault linked service |
+| Datadog key for Databricks job clusters | Databricks secret scope `zingy-platform` | `{{secrets/...}}` reference in the job cluster config |
+
+Secrets are never passed as command-line arguments (they are piped via stdin or set as environment variables). Plan files are not uploaded as artifacts, because this repository is public. Local values go in git-ignored files (`.env`, `.github/env/*.env`); templates are in `.env.example` and `.github/environment.example.env`. Gitleaks runs in pre-commit and CI. See [docs/security.md](docs/security.md).
+
+## Dependency updates
+
+Dependabot (`.github/dependabot.yml`) opens pull requests for GitHub Actions, pip, npm (ADF utilities), and the Terraform providers. CI must pass before you merge. Two things to know:
+
+- `pyspark` and `delta-spark` are pinned to match Databricks Runtime 15.4 LTS and are excluded from Dependabot. Upgrade them together with `spark_version` in `databricks/resources/*.yml`.
+- Terraform modules declare only a minimum `azurerm` version. The root `terraform/versions.tf` sets the allowed range (currently `~> 5.6`), so a provider upgrade is a one-line change in that file plus any schema fixes `terraform validate` reports.
 
 ## Environments
 

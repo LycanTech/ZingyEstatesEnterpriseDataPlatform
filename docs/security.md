@@ -20,6 +20,8 @@ The platform doesn't use storage account keys or SAS tokens. `shared_access_key_
 - The Datadog key for job clusters is stored in the Databricks secret scope `zingy-platform`, loaded by CI from the variable group.
 - Pipeline secrets live in variable groups marked secret (link them to Key Vault in production). They're mapped into tasks explicitly.
 - Gitleaks runs in pre-commit and CI. `.gitignore` excludes `.env`, state, and plans.
+- Secrets never go on a command line: the Datadog key is piped to the Databricks CLI via stdin, and `sqlcmd` reads the Synapse master key password from an environment variable.
+- Terraform plan files are never uploaded as artifacts (the repository is public). Reviewers read the redacted plan in the CD job summary.
 
 ## Network
 
