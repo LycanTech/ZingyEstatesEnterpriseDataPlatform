@@ -1,0 +1,10 @@
+{
+    "name": "ls_keyvault",
+    "properties": {
+        "type": "AzureKeyVault",
+        "annotations": [],
+        "typeProperties": {
+            "baseUrl": "https://kv-zingy-dev-ze01.vault.azure.net/"
+        }
+    }
+}

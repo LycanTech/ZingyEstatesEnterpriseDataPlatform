@@ -1,0 +1,9 @@
+variables:
+  vmImage: ubuntu-24.04
+  terraformVersion: '1.9.8'
+  pythonVersion: '3.11'
+  nodeVersion: '20.x'
+  databricksCliVersion: '0.230.0'
+  sqlcmdVersion: '1.8.0'
+  # Dev factory resource ID shape used by the ADF export (names only; no Azure call).
+  adfBuildFactoryId: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-zingyestates-dev-data/providers/Microsoft.DataFactory/factories/adf-zingy-dev-ze01

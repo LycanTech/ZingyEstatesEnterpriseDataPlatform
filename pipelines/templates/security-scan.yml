@@ -1,0 +1,25 @@
+# Static security analysis of IaC and a secret scan of the repository.
+steps:
+- task: UsePythonVersion@0
+  inputs: { versionSpec: $(pythonVersion) }
+
+- script: |
+    set -euo pipefail
+    pip install --quiet checkov==3.2.296
+    checkov --directory terraform --framework terraform --quiet --compact \
+      --config-file .checkov.yml \
+      --output cli --output junitxml --output-file-path console,$(Build.ArtifactStagingDirectory)
+  displayName: Checkov IaC scan
+
+- script: |
+    set -euo pipefail
+    curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar -xz gitleaks
+    ./gitleaks detect --source . --no-banner --redact --verbose
+  displayName: Gitleaks secret scan
+
+- task: PublishTestResults@2
+  condition: always()
+  inputs:
+    testResultsFormat: JUnit
+    testResultsFiles: $(Build.ArtifactStagingDirectory)/results_junitxml.xml
+    testRunTitle: Checkov

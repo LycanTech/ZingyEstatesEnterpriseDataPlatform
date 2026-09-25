@@ -1,0 +1,30 @@
+{
+    "name": "adf-zingy-dev-ze01",
+    "properties": {
+        "globalParameters": {
+            "environment": {
+                "type": "String",
+                "value": "dev"
+            },
+            "databricks_job_id": {
+                "type": "String",
+                "value": "0"
+            },
+            "storage_account": {
+                "type": "String",
+                "value": "stzingydevze01dl"
+            },
+            "synapse_dedicated_enabled": {
+                "type": "Bool",
+                "value": false
+            }
+        },
+        "globalConfigurations": {
+            "PipelineBillingEnabled": "true"
+        }
+    },
+    "location": "eastus2",
+    "identity": {
+        "type": "SystemAssigned"
+    }
+}

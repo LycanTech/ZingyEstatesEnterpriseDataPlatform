@@ -1,0 +1,24 @@
+# Reads terraform/ outputs for an environment and exposes each one as an
+# upper-case job variable, e.g. storage_account_name -> $(STORAGE_ACCOUNT_NAME).
+parameters:
+- name: environment
+  type: string
+
+steps:
+- task: TerraformInstaller@1
+  displayName: Install Terraform
+  inputs: { terraformVersion: $(terraformVersion) }
+
+- task: AzureCLI@2
+  displayName: Read Terraform outputs (${{ parameters.environment }})
+  inputs:
+    azureSubscription: sc-zingyestates-${{ parameters.environment }}
+    scriptType: bash
+    scriptLocation: inlineScript
+    addSpnToEnvironment: true
+    inlineScript: |
+      set -euo pipefail
+      source pipelines/scripts/arm-env.sh
+      terraform -chdir=terraform init -backend-config=environments/${{ parameters.environment }}/backend.hcl >/dev/null
+      terraform -chdir=terraform output -json \
+        | jq -r 'to_entries[] | "##vso[task.setvariable variable=\(.key | ascii_upcase)]\(.value.value)"'

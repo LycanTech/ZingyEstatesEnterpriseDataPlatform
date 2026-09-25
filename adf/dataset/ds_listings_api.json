@@ -1,0 +1,23 @@
+{
+    "name": "ds_listings_api",
+    "properties": {
+        "linkedServiceName": {
+            "referenceName": "ls_listings_api",
+            "type": "LinkedServiceReference"
+        },
+        "parameters": {
+            "relativeUrl": {
+                "type": "string"
+            }
+        },
+        "annotations": [],
+        "type": "RestResource",
+        "schema": [],
+        "typeProperties": {
+            "relativeUrl": {
+                "value": "@dataset().relativeUrl",
+                "type": "Expression"
+            }
+        }
+    }
+}

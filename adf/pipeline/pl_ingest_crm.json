@@ -1,0 +1,114 @@
+{
+    "name": "pl_ingest_crm",
+    "properties": {
+        "description": "Full extract of CRM tables to landing/crm/<entity>/ingest_date=<run_date> as Parquet.",
+        "folder": {
+            "name": "ingestion"
+        },
+        "parameters": {
+            "run_date": {
+                "type": "string"
+            },
+            "tables": {
+                "type": "array",
+                "defaultValue": [
+                    {
+                        "schema": "sales",
+                        "table": "Property",
+                        "entity": "properties"
+                    },
+                    {
+                        "schema": "sales",
+                        "table": "Agent",
+                        "entity": "agents"
+                    },
+                    {
+                        "schema": "sales",
+                        "table": "SaleTransaction",
+                        "entity": "sales_transactions"
+                    },
+                    {
+                        "schema": "leasing",
+                        "table": "Lease",
+                        "entity": "leases"
+                    }
+                ]
+            }
+        },
+        "annotations": [],
+        "activities": [
+            {
+                "name": "ForEach CRM table",
+                "type": "ForEach",
+                "typeProperties": {
+                    "items": {
+                        "value": "@pipeline().parameters.tables",
+                        "type": "Expression"
+                    },
+                    "isSequential": false,
+                    "batchCount": 4,
+                    "activities": [
+                        {
+                            "name": "Copy CRM table to landing",
+                            "type": "Copy",
+                            "policy": {
+                                "timeout": "0.02:00:00",
+                                "retry": 2,
+                                "retryIntervalInSeconds": 120,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "inputs": [
+                                {
+                                    "referenceName": "ds_crm_sql_table",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "schema": {
+                                            "value": "@item().schema",
+                                            "type": "Expression"
+                                        },
+                                        "table": {
+                                            "value": "@item().table",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ],
+                            "outputs": [
+                                {
+                                    "referenceName": "ds_lake_parquet",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "fileSystem": "landing",
+                                        "folderPath": {
+                                            "value": "@concat('crm/', item().entity, '/ingest_date=', pipeline().parameters.run_date)",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ],
+                            "typeProperties": {
+                                "source": {
+                                    "type": "AzureSqlSource",
+                                    "queryTimeout": "02:00:00",
+                                    "partitionOption": "None"
+                                },
+                                "sink": {
+                                    "type": "ParquetSink",
+                                    "storeSettings": {
+                                        "type": "AzureBlobFSWriteSettings",
+                                        "copyBehavior": "FlattenHierarchy"
+                                    },
+                                    "formatSettings": {
+                                        "type": "ParquetWriteSettings"
+                                    }
+                                },
+                                "enableStaging": false
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}

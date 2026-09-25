@@ -1,0 +1,27 @@
+{
+    "name": "ls_listings_api",
+    "properties": {
+        "description": "Listings partner REST API. API key held in Key Vault secret listings-api-key.",
+        "type": "RestService",
+        "annotations": [],
+        "connectVia": {
+            "referenceName": "ir-managed-vnet",
+            "type": "IntegrationRuntimeReference"
+        },
+        "typeProperties": {
+            "url": "https://api.listings-partner.example.com/v2/",
+            "enableServerCertificateValidation": true,
+            "authenticationType": "Anonymous",
+            "authHeaders": {
+                "x-api-key": {
+                    "type": "AzureKeyVaultSecret",
+                    "store": {
+                        "referenceName": "ls_keyvault",
+                        "type": "LinkedServiceReference"
+                    },
+                    "secretName": "listings-api-key"
+                }
+            }
+        }
+    }
+}

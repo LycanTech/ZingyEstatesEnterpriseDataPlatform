@@ -1,0 +1,19 @@
+{
+    "name": "ls_synapse_dedicated",
+    "properties": {
+        "description": "Synapse dedicated SQL pool dw_zingy, authenticated with the factory managed identity.",
+        "type": "AzureSqlDW",
+        "annotations": [],
+        "connectVia": {
+            "referenceName": "ir-managed-vnet",
+            "type": "IntegrationRuntimeReference"
+        },
+        "typeProperties": {
+            "server": "syn-zingy-dev-ze01.sql.azuresynapse.net",
+            "database": "dw_zingy",
+            "encrypt": "mandatory",
+            "trustServerCertificate": false,
+            "authenticationType": "SystemAssignedManagedIdentity"
+        }
+    }
+}

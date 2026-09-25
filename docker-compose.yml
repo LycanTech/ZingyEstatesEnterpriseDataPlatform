@@ -1,0 +1,53 @@
+# Local environment for ZingyEstates.
+#
+#   docker compose run --rm platform                     # end-to-end medallion demo
+#   docker compose run --rm platform pytest              # full test suite incl. Spark
+#   docker compose --profile notebooks up jupyter        # JupyterLab on http://localhost:8888
+#   docker compose --profile observability up -d datadog-agent
+#       then: DD_AGENT_HOST=datadog-agent docker compose run --rm platform
+#
+# The lake is written to ./.local-lake (git-ignored).
+
+services:
+  platform:
+    build:
+      context: .
+      dockerfile: docker/platform.Dockerfile
+    image: zingyestates/platform-local:latest
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - ivy-cache:/root/.ivy2
+    environment:
+      ZINGY_LOCAL_BASE_DIR: /workspace/.local-lake
+      DD_AGENT_HOST: ${DD_AGENT_HOST:-}
+      DD_DOGSTATSD_PORT: "8125"
+
+  jupyter:
+    image: zingyestates/platform-local:latest
+    profiles: ["notebooks"]
+    depends_on: [platform]
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - ivy-cache:/root/.ivy2
+    ports:
+      - "8888:8888"
+    command: >
+      jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root
+      --ServerApp.token='' --notebook-dir=/workspace/notebooks
+
+  datadog-agent:
+    image: gcr.io/datadoghq/agent:7
+    profiles: ["observability"]
+    environment:
+      DD_API_KEY: ${DD_API_KEY:-}  # set in .env (see .env.example)
+      DD_SITE: ${DD_SITE:-datadoghq.com}
+      DD_DOGSTATSD_NON_LOCAL_TRAFFIC: "true"
+      DD_TAGS: "company:zingyestates env:local"
+      DD_HOSTNAME: zingyestates-local
+    ports:
+      - "8125:8125/udp"
+
+volumes:
+  ivy-cache:

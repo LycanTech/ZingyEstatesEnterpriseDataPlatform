@@ -1,0 +1,50 @@
+# Builds the wheel and deploys the Asset Bundle. Exposes the job ID as the
+# output variable bundle.databricksJobId for the Data Factory deployment.
+parameters:
+- name: environment
+  type: string
+
+steps:
+- task: UsePythonVersion@0
+  inputs: { versionSpec: $(pythonVersion) }
+
+- script: |
+    set -euo pipefail
+    pip install --quiet build
+    curl -fsSL "https://raw.githubusercontent.com/databricks/setup-cli/v$(databricksCliVersion)/install.sh" | sudo sh
+    databricks --version
+  displayName: Install Databricks CLI
+
+- template: terraform-outputs.yml
+  parameters:
+    environment: ${{ parameters.environment }}
+
+- task: AzureCLI@2
+  name: bundle
+  displayName: Deploy Databricks bundle (${{ parameters.environment }})
+  inputs:
+    azureSubscription: sc-zingyestates-${{ parameters.environment }}
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -euo pipefail
+      export DATABRICKS_HOST="$(DATABRICKS_WORKSPACE_URL)"
+      export DATABRICKS_AUTH_TYPE=azure-cli
+
+      # One-time Unity Catalog wiring (idempotent).
+      bash scripts/setup-unity-catalog.sh "${{ parameters.environment }}" "$(STORAGE_ACCOUNT_NAME)" "$(DATABRICKS_ACCESS_CONNECTOR_ID)"
+
+      # Datadog key for the job clusters (spark_env_vars reads it from this scope).
+      databricks secrets create-scope zingy-platform 2>/dev/null || true
+      databricks secrets put-secret zingy-platform datadog-api-key --string-value "$DD_API_KEY"
+
+      cd databricks
+      databricks bundle validate -t ${{ parameters.environment }} --var storage_account=$(STORAGE_ACCOUNT_NAME)
+      databricks bundle deploy   -t ${{ parameters.environment }} --var storage_account=$(STORAGE_ACCOUNT_NAME)
+
+      job_id="$(databricks bundle summary -t ${{ parameters.environment }} --var storage_account=$(STORAGE_ACCOUNT_NAME) -o json \
+        | jq -r '.resources.jobs.zingy_daily_medallion.id')"
+      echo "Job ID: $job_id"
+      echo "##vso[task.setvariable variable=databricksJobId;isOutput=true]$job_id"
+  env:
+    DD_API_KEY: $(DD_API_KEY)

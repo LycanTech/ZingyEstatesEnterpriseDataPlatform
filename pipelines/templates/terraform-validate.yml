@@ -1,0 +1,22 @@
+parameters:
+- name: directory
+  type: string
+
+steps:
+- task: TerraformInstaller@1
+  displayName: Install Terraform
+  inputs: { terraformVersion: $(terraformVersion) }
+
+- script: |
+    set -euo pipefail
+    terraform -chdir=${{ parameters.directory }} fmt -check -recursive
+    terraform -chdir=${{ parameters.directory }} init -backend=false -input=false
+    terraform -chdir=${{ parameters.directory }} validate
+  displayName: Terraform fmt/validate (${{ parameters.directory }})
+
+- script: |
+    set -euo pipefail
+    curl -fsSL https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+    tflint --init --config "$(Build.SourcesDirectory)/.tflint.hcl"
+    tflint --chdir=${{ parameters.directory }} --recursive --config "$(Build.SourcesDirectory)/.tflint.hcl"
+  displayName: TFLint (${{ parameters.directory }})

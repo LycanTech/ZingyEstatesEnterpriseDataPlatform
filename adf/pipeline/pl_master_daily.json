@@ -1,0 +1,153 @@
+{
+    "name": "pl_master_daily",
+    "properties": {
+        "description": "Daily orchestration: ingest CRM + listings -> Databricks medallion -> Synapse load.",
+        "folder": {
+            "name": "orchestration"
+        },
+        "parameters": {
+            "run_date": {
+                "type": "string",
+                "defaultValue": ""
+            }
+        },
+        "variables": {
+            "run_date": {
+                "type": "String"
+            }
+        },
+        "annotations": [],
+        "activities": [
+            {
+                "name": "Resolve run date",
+                "type": "SetVariable",
+                "typeProperties": {
+                    "variableName": "run_date",
+                    "value": {
+                        "value": "@if(empty(pipeline().parameters.run_date), formatDateTime(utcNow(), 'yyyy-MM-dd'), pipeline().parameters.run_date)",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Ingest CRM",
+                "type": "ExecutePipeline",
+                "dependsOn": [
+                    {
+                        "activity": "Resolve run date",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "typeProperties": {
+                    "pipeline": {
+                        "referenceName": "pl_ingest_crm",
+                        "type": "PipelineReference"
+                    },
+                    "waitOnCompletion": true,
+                    "parameters": {
+                        "run_date": {
+                            "value": "@variables('run_date')",
+                            "type": "Expression"
+                        }
+                    }
+                }
+            },
+            {
+                "name": "Ingest listings",
+                "type": "ExecutePipeline",
+                "dependsOn": [
+                    {
+                        "activity": "Resolve run date",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "typeProperties": {
+                    "pipeline": {
+                        "referenceName": "pl_ingest_listings",
+                        "type": "PipelineReference"
+                    },
+                    "waitOnCompletion": true,
+                    "parameters": {
+                        "run_date": {
+                            "value": "@variables('run_date')",
+                            "type": "Expression"
+                        }
+                    }
+                }
+            },
+            {
+                "name": "Transform in Databricks",
+                "type": "ExecutePipeline",
+                "dependsOn": [
+                    {
+                        "activity": "Ingest CRM",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    },
+                    {
+                        "activity": "Ingest listings",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "typeProperties": {
+                    "pipeline": {
+                        "referenceName": "pl_transform_databricks",
+                        "type": "PipelineReference"
+                    },
+                    "waitOnCompletion": true,
+                    "parameters": {
+                        "run_date": {
+                            "value": "@variables('run_date')",
+                            "type": "Expression"
+                        }
+                    }
+                }
+            },
+            {
+                "name": "If dedicated pool enabled",
+                "type": "IfCondition",
+                "dependsOn": [
+                    {
+                        "activity": "Transform in Databricks",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@pipeline().globalParameters.synapse_dedicated_enabled",
+                        "type": "Expression"
+                    },
+                    "ifTrueActivities": [
+                        {
+                            "name": "Load Synapse",
+                            "type": "ExecutePipeline",
+                            "dependsOn": [],
+                            "typeProperties": {
+                                "pipeline": {
+                                    "referenceName": "pl_load_synapse",
+                                    "type": "PipelineReference"
+                                },
+                                "waitOnCompletion": true,
+                                "parameters": {
+                                    "run_date": {
+                                        "value": "@variables('run_date')",
+                                        "type": "Expression"
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}

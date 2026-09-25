@@ -1,0 +1,44 @@
+{
+    "name": "pl_transform_databricks",
+    "properties": {
+        "description": "Runs the Databricks job zingy-daily-medallion-<env> (bronze -> silver -> gold) deployed by databricks/databricks.yml.",
+        "folder": {
+            "name": "transformation"
+        },
+        "parameters": {
+            "run_date": {
+                "type": "string"
+            }
+        },
+        "annotations": [],
+        "activities": [
+            {
+                "name": "Run medallion job",
+                "type": "DatabricksJob",
+                "linkedServiceName": {
+                    "referenceName": "ls_databricks",
+                    "type": "LinkedServiceReference"
+                },
+                "policy": {
+                    "timeout": "0.02:00:00",
+                    "retry": 1,
+                    "retryIntervalInSeconds": 300,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "jobId": {
+                        "value": "@pipeline().globalParameters.databricks_job_id",
+                        "type": "Expression"
+                    },
+                    "jobParameters": {
+                        "run_date": {
+                            "value": "@pipeline().parameters.run_date",
+                            "type": "Expression"
+                        }
+                    }
+                }
+            }
+        ]
+    }
+}

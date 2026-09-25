@@ -1,0 +1,76 @@
+{
+    "name": "pl_ingest_listings",
+    "properties": {
+        "description": "Pages through the listings partner API to landing/listings_api/listings/ingest_date=<run_date> as JSON Lines.",
+        "folder": {
+            "name": "ingestion"
+        },
+        "parameters": {
+            "run_date": {
+                "type": "string"
+            }
+        },
+        "annotations": [],
+        "activities": [
+            {
+                "name": "Copy listings API to landing",
+                "type": "Copy",
+                "policy": {
+                    "timeout": "0.02:00:00",
+                    "retry": 2,
+                    "retryIntervalInSeconds": 120,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "inputs": [
+                    {
+                        "referenceName": "ds_listings_api",
+                        "type": "DatasetReference",
+                        "parameters": {
+                            "relativeUrl": "listings?page_size=500"
+                        }
+                    }
+                ],
+                "outputs": [
+                    {
+                        "referenceName": "ds_lake_json",
+                        "type": "DatasetReference",
+                        "parameters": {
+                            "fileSystem": "landing",
+                            "folderPath": {
+                                "value": "@concat('listings_api/listings/ingest_date=', pipeline().parameters.run_date)",
+                                "type": "Expression"
+                            }
+                        }
+                    }
+                ],
+                "typeProperties": {
+                    "source": {
+                        "type": "RestSource",
+                        "httpRequestTimeout": "00:02:00",
+                        "requestInterval": "00.00:00:00.100",
+                        "requestMethod": "GET",
+                        "paginationRules": {
+                            "AbsoluteUrl": "$.paging.next"
+                        }
+                    },
+                    "sink": {
+                        "type": "JsonSink",
+                        "storeSettings": {
+                            "type": "AzureBlobFSWriteSettings"
+                        },
+                        "formatSettings": {
+                            "type": "JsonWriteSettings",
+                            "filePattern": "setOfObjects"
+                        }
+                    },
+                    "translator": {
+                        "type": "TabularTranslator",
+                        "collectionReference": "$['data']"
+                    },
+                    "enableStaging": false
+                }
+            }
+        ]
+    }
+}

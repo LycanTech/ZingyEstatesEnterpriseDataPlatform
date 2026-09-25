@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: monthly
+    ignore:
+      # Pinned to match Databricks Runtime 15.4 LTS; upgrade together with spark_version.
+      - dependency-name: pyspark
+      - dependency-name: delta-spark
+  - package-ecosystem: npm
+    directory: /adf
+    schedule:
+      interval: monthly
+  - package-ecosystem: terraform
+    directory: /terraform
+    schedule:
+      interval: monthly
+  - package-ecosystem: terraform
+    directory: /datadog
+    schedule:
+      interval: monthly

@@ -1,0 +1,20 @@
+# Validates every ADF resource in adf/ and exports the ARM template that the
+# deploy stages apply to each factory.
+steps:
+- task: NodeTool@0
+  inputs: { versionSpec: $(nodeVersion) }
+
+- script: npm ci --no-audit --no-fund
+  workingDirectory: adf
+  displayName: Install ADF utilities
+
+- script: npm run build -- validate "$(Build.SourcesDirectory)/adf" "$(adfBuildFactoryId)"
+  workingDirectory: adf
+  displayName: Validate ADF resources
+
+- script: npm run build -- export "$(Build.SourcesDirectory)/adf" "$(adfBuildFactoryId)" "ArmTemplate"
+  workingDirectory: adf
+  displayName: Export ARM template
+
+- publish: adf/ArmTemplate
+  artifact: adf-arm-template

@@ -1,0 +1,20 @@
+# Repository-wide Python tooling configuration. The deployable package itself is
+# defined in databricks/pyproject.toml.
+
+[tool.pytest.ini_options]
+pythonpath = ["databricks/src"]
+testpaths = ["tests"]
+markers = ["spark: needs a local Spark + Delta runtime (Java 17)"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 140
+target-version = "py310"
+extend-exclude = [".local-lake", "adf/node_modules"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "SIM"]
+ignore = ["S101", "S311", "S608"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["zingyestates"]

@@ -1,0 +1,49 @@
+# Plans one Terraform root (terraform/ or datadog/) for one environment and
+# publishes the plan so the approved deployment job applies exactly that plan.
+parameters:
+- name: environment
+  type: string
+- name: directory
+  type: string
+- name: varFile
+  type: string
+- name: backendConfig
+  type: string
+- name: artifactName
+  type: string
+
+steps:
+- task: TerraformInstaller@1
+  displayName: Install Terraform
+  inputs: { terraformVersion: $(terraformVersion) }
+
+- task: AzureCLI@2
+  displayName: Terraform plan (${{ parameters.directory }}, ${{ parameters.environment }})
+  inputs:
+    azureSubscription: sc-zingyestates-${{ parameters.environment }}
+    scriptType: bash
+    scriptLocation: inlineScript
+    addSpnToEnvironment: true
+    inlineScript: |
+      set -euo pipefail
+      source pipelines/scripts/arm-env.sh
+      terraform -chdir=${{ parameters.directory }} init -backend-config=${{ parameters.backendConfig }}
+      terraform -chdir=${{ parameters.directory }} plan -var-file=${{ parameters.varFile }} -out=tfplan
+      terraform -chdir=${{ parameters.directory }} show -no-color tfplan > "$(Build.ArtifactStagingDirectory)/${{ parameters.artifactName }}.txt"
+  env:
+    # Variable-group values are mapped explicitly: secrets are never exported
+    # automatically, and Terraform variable names are case-sensitive.
+    TF_VAR_synapse_admin_group_object_id: $(synapseAdminGroupObjectId)
+    TF_VAR_azure_tenant_id: $(datadogAzureTenantId)
+    TF_VAR_azure_client_id: $(datadogAzureClientId)
+    TF_VAR_azure_client_secret: $(datadogAzureClientSecret)
+    DD_API_KEY: $(DD_API_KEY)
+    DD_APP_KEY: $(DD_APP_KEY)
+
+- publish: ${{ parameters.directory }}/tfplan
+  artifact: ${{ parameters.artifactName }}
+  displayName: Publish plan
+
+- publish: $(Build.ArtifactStagingDirectory)/${{ parameters.artifactName }}.txt
+  artifact: ${{ parameters.artifactName }}-readable
+  displayName: Publish readable plan for reviewers

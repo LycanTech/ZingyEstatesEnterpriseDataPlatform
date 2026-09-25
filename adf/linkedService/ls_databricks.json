@@ -1,0 +1,13 @@
+{
+    "name": "ls_databricks",
+    "properties": {
+        "description": "Databricks workspace, authenticated with the factory managed identity.",
+        "type": "AzureDatabricks",
+        "annotations": [],
+        "typeProperties": {
+            "domain": "https://adb-0000000000000000.0.azuredatabricks.net",
+            "authentication": "MSI",
+            "workspaceResourceId": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-zingyestates-dev-data/providers/Microsoft.Databricks/workspaces/dbw-zingy-dev"
+        }
+    }
+}

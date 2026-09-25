@@ -1,0 +1,347 @@
+# Reusable: deploys one environment. Mirrors pipelines/stages/deploy-environment.yml.
+#
+#   plan            (<env>-automation)  Terraform plans for Azure + Datadog -> job summary
+#   infrastructure  (<env>)             approval gate, then Terraform apply
+#   databricks      (<env>-automation)  Unity Catalog setup + Asset Bundle deploy
+#   data-factory    (<env>-automation)  ARM deploy with per-environment overrides
+#   synapse         (<env>-automation)  serverless + dedicated SQL
+#   smoke-test      (<env>-automation)  runs pl_master_daily end to end (optional)
+#
+# Only the infrastructure job uses the protected environment, so reviewers
+# approve once per environment. Both GitHub environments hold the same
+# variables and secrets (scripts/setup-github-environments.sh).
+name: Deploy environment
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      ref:
+        type: string
+        required: true
+      run_smoke_test:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  TERRAFORM_VERSION: "1.9.8"
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20"
+  DATABRICKS_CLI_VERSION: "0.230.0"
+  SQLCMD_VERSION: "1.8.0"
+  ADF_BUILD_FACTORY_ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-zingyestates-dev-data/providers/Microsoft.DataFactory/factories/adf-zingy-dev-ze01
+
+jobs:
+  plan:
+    name: Plan (${{ inputs.environment }})
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment }}-automation
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: "true"
+      ARM_USE_AZUREAD: "true"
+      TF_IN_AUTOMATION: "1"
+      TF_INPUT: "0"
+      TF_VAR_synapse_admin_group_object_id: ${{ vars.SYNAPSE_ADMIN_GROUP_OBJECT_ID }}
+      TF_VAR_azure_tenant_id: ${{ vars.DATADOG_AZURE_TENANT_ID }}
+      TF_VAR_azure_client_id: ${{ vars.DATADOG_AZURE_CLIENT_ID }}
+      TF_VAR_azure_client_secret: ${{ secrets.DATADOG_AZURE_CLIENT_SECRET }}
+      DD_API_KEY: ${{ secrets.DD_API_KEY }}
+      DD_APP_KEY: ${{ secrets.DD_APP_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Plan Azure and Datadog
+        run: |
+          set -euo pipefail
+          plan() { # dir var-file backend-config title
+            terraform -chdir="$1" init -backend-config="$3"
+            terraform -chdir="$1" plan -var-file="$2" -out=tfplan -lock-timeout=5m
+            {
+              echo "### $4 plan (${{ inputs.environment }})"
+              echo '<details><summary>show plan</summary>'
+              echo; echo '```'
+              terraform -chdir="$1" show -no-color tfplan | head -c 60000
+              echo '```'; echo '</details>'
+            } >> "$GITHUB_STEP_SUMMARY"
+          }
+          plan terraform environments/${{ inputs.environment }}/terraform.tfvars environments/${{ inputs.environment }}/backend.hcl "Azure"
+          plan datadog   environments/${{ inputs.environment }}.tfvars          environments/${{ inputs.environment }}.backend.hcl "Datadog"
+
+  infrastructure:
+    name: Apply infrastructure (${{ inputs.environment }})
+    needs: plan
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment }} # approval gate for uat/prod
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: "true"
+      ARM_USE_AZUREAD: "true"
+      TF_IN_AUTOMATION: "1"
+      TF_INPUT: "0"
+      TF_VAR_synapse_admin_group_object_id: ${{ vars.SYNAPSE_ADMIN_GROUP_OBJECT_ID }}
+      TF_VAR_azure_tenant_id: ${{ vars.DATADOG_AZURE_TENANT_ID }}
+      TF_VAR_azure_client_id: ${{ vars.DATADOG_AZURE_CLIENT_ID }}
+      TF_VAR_azure_client_secret: ${{ secrets.DATADOG_AZURE_CLIENT_SECRET }}
+      DD_API_KEY: ${{ secrets.DD_API_KEY }}
+      DD_APP_KEY: ${{ secrets.DD_APP_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      # Plans are not passed between jobs as artifacts: this repository is public
+      # and plan files can contain sensitive values. The apply re-plans from the
+      # same commit; the reviewed plan is in the Plan job summary.
+      - name: Apply Azure
+        run: |
+          terraform -chdir=terraform init -backend-config=environments/${{ inputs.environment }}/backend.hcl
+          terraform -chdir=terraform apply -auto-approve -lock-timeout=5m -var-file=environments/${{ inputs.environment }}/terraform.tfvars
+
+      - name: Apply Datadog
+        run: |
+          terraform -chdir=datadog init -backend-config=environments/${{ inputs.environment }}.backend.hcl
+          terraform -chdir=datadog apply -auto-approve -lock-timeout=5m -var-file=environments/${{ inputs.environment }}.tfvars
+
+  databricks:
+    name: Databricks bundle (${{ inputs.environment }})
+    needs: infrastructure
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment }}-automation
+    outputs:
+      job_id: ${{ steps.bundle.outputs.job_id }}
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: "true"
+      ARM_USE_AZUREAD: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install build tools and Databricks CLI
+        run: |
+          pip install --quiet build
+          curl -fsSL "https://raw.githubusercontent.com/databricks/setup-cli/v${DATABRICKS_CLI_VERSION}/install.sh" | sudo sh
+          databricks --version
+
+      - uses: ./.github/actions/terraform-outputs
+        with:
+          environment: ${{ inputs.environment }}
+
+      - name: Deploy bundle
+        id: bundle
+        env:
+          DATABRICKS_AUTH_TYPE: azure-cli
+          DD_API_KEY: ${{ secrets.DD_API_KEY }}
+          TARGET: ${{ inputs.environment }}
+        run: |
+          set -euo pipefail
+          export DATABRICKS_HOST="$DATABRICKS_WORKSPACE_URL"
+
+          bash scripts/setup-unity-catalog.sh "$TARGET" "$STORAGE_ACCOUNT_NAME" "$DATABRICKS_ACCESS_CONNECTOR_ID"
+
+          databricks secrets create-scope zingy-platform 2>/dev/null || true
+          databricks secrets put-secret zingy-platform datadog-api-key --string-value "$DD_API_KEY"
+
+          cd databricks
+          databricks bundle validate -t "$TARGET" --var storage_account="$STORAGE_ACCOUNT_NAME"
+          databricks bundle deploy   -t "$TARGET" --var storage_account="$STORAGE_ACCOUNT_NAME"
+          job_id="$(databricks bundle summary -t "$TARGET" --var storage_account="$STORAGE_ACCOUNT_NAME" -o json \
+            | jq -r '.resources.jobs.zingy_daily_medallion.id')"
+          echo "job_id=$job_id" >> "$GITHUB_OUTPUT"
+          echo "Databricks job **$job_id** deployed to $TARGET" >> "$GITHUB_STEP_SUMMARY"
+
+  data-factory:
+    name: Data Factory (${{ inputs.environment }})
+    needs: databricks
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment }}-automation
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: "true"
+      ARM_USE_AZUREAD: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: adf/package-lock.json
+
+      - name: Build ARM template
+        working-directory: adf
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build -- validate "$GITHUB_WORKSPACE/adf" "$ADF_BUILD_FACTORY_ID"
+          npm run build -- export "$GITHUB_WORKSPACE/adf" "$ADF_BUILD_FACTORY_ID" ArmTemplate
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          enable-AzPSSession: true
+
+      - uses: ./.github/actions/terraform-outputs
+        with:
+          environment: ${{ inputs.environment }}
+
+      - name: Stop triggers
+        uses: azure/powershell@v2
+        with:
+          azPSVersion: latest
+          inlineScript: |
+            & "$env:GITHUB_WORKSPACE/adf/ArmTemplate/PrePostDeploymentScript.ps1" `
+              -armTemplate "$env:GITHUB_WORKSPACE/adf/ArmTemplate/ARMTemplateForFactory.json" `
+              -ResourceGroupName $env:RESOURCE_GROUP_NAME -DataFactoryName $env:DATA_FACTORY_NAME `
+              -predeployment $true -deleteDeployment $false
+
+      - name: Deploy ARM template
+        uses: azure/arm-deploy@v2
+        with:
+          scope: resourcegroup
+          subscriptionId: ${{ env.SUBSCRIPTION_ID }}
+          resourceGroupName: ${{ env.RESOURCE_GROUP_NAME }}
+          template: adf/ArmTemplate/ARMTemplateForFactory.json
+          deploymentMode: Incremental
+          deploymentName: adf-${{ github.run_id }}
+          parameters: >-
+            adf/ArmTemplate/ARMTemplateParametersForFactory.json
+            factoryName=${{ env.DATA_FACTORY_NAME }}
+            dataFactory_location=${{ env.LOCATION }}
+            ls_adls_lake_properties_typeProperties_url=https://${{ env.STORAGE_ACCOUNT_NAME }}.dfs.core.windows.net/
+            ls_keyvault_properties_typeProperties_baseUrl=${{ env.KEY_VAULT_URI }}
+            ls_databricks_properties_typeProperties_domain=${{ env.DATABRICKS_WORKSPACE_URL }}
+            ls_databricks_properties_typeProperties_workspaceResourceId=${{ env.DATABRICKS_WORKSPACE_ID }}
+            ls_synapse_dedicated_properties_typeProperties_server=${{ env.SYNAPSE_DEDICATED_ENDPOINT }}
+            dataFactory_properties_globalParameters_environment_value=${{ inputs.environment }}
+            dataFactory_properties_globalParameters_databricks_job_id_value=${{ needs.databricks.outputs.job_id }}
+            dataFactory_properties_globalParameters_storage_account_value=${{ env.STORAGE_ACCOUNT_NAME }}
+            dataFactory_properties_globalParameters_synapse_dedicated_enabled_value=${{ env.SYNAPSE_DEDICATED_ENABLED }}
+
+      - name: Clean up and restart triggers
+        uses: azure/powershell@v2
+        with:
+          azPSVersion: latest
+          inlineScript: |
+            & "$env:GITHUB_WORKSPACE/adf/ArmTemplate/PrePostDeploymentScript.ps1" `
+              -armTemplate "$env:GITHUB_WORKSPACE/adf/ArmTemplate/ARMTemplateForFactory.json" `
+              -ResourceGroupName $env:RESOURCE_GROUP_NAME -DataFactoryName $env:DATA_FACTORY_NAME `
+              -predeployment $false -deleteDeployment $true
+
+  synapse:
+    name: Synapse SQL (${{ inputs.environment }})
+    needs: infrastructure
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment }}-automation
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: "true"
+      ARM_USE_AZUREAD: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install go-sqlcmd
+        run: |
+          curl -fsSL "https://github.com/microsoft/go-sqlcmd/releases/download/v${SQLCMD_VERSION}/sqlcmd-linux-amd64.tar.bz2" \
+            | sudo tar -xj -C /usr/local/bin sqlcmd
+          sqlcmd --version
+
+      - uses: ./.github/actions/terraform-outputs
+        with:
+          environment: ${{ inputs.environment }}
+
+      - name: Deploy SQL
+        env:
+          REPORTING_GROUP_NAME: ${{ vars.REPORTING_GROUP_NAME }}
+          SYNAPSE_MASTER_KEY_PASSWORD: ${{ secrets.SYNAPSE_MASTER_KEY_PASSWORD }}
+        run: |
+          RESOURCE_GROUP="$RESOURCE_GROUP_NAME" \
+          SYNAPSE_WORKSPACE="$SYNAPSE_WORKSPACE_NAME" \
+          SERVERLESS_ENDPOINT="$SYNAPSE_SERVERLESS_ENDPOINT" \
+          DEDICATED_ENDPOINT="$SYNAPSE_DEDICATED_ENDPOINT" \
+          DEDICATED_POOL="$SYNAPSE_DEDICATED_POOL_NAME" \
+          STORAGE_ACCOUNT="$STORAGE_ACCOUNT_NAME" \
+          ADF_NAME="$DATA_FACTORY_NAME" \
+          bash scripts/deploy-synapse.sh
+
+  smoke-test:
+    name: Smoke test (${{ inputs.environment }})
+    if: inputs.run_smoke_test
+    needs: [data-factory, synapse]
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment }}-automation
+    timeout-minutes: 120
+    env:
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: "true"
+      ARM_USE_AZUREAD: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: ./.github/actions/terraform-outputs
+        with:
+          environment: ${{ inputs.environment }}
+
+      - name: Run pl_master_daily
+        run: RESOURCE_GROUP="$RESOURCE_GROUP_NAME" ADF_NAME="$DATA_FACTORY_NAME" bash scripts/smoke-test-adf.sh

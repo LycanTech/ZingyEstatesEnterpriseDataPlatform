@@ -1,0 +1,73 @@
+# Deploys the ARM template exported by adf-build.yml, overriding every
+# environment-specific value from Terraform outputs. Triggers are stopped before
+# and restarted after the deployment by the script ADF generates.
+parameters:
+- name: environment
+  type: string
+- name: databricksJobId
+  type: string
+
+steps:
+- download: current
+  artifact: adf-arm-template
+  displayName: Download ARM template
+
+- template: terraform-outputs.yml
+  parameters:
+    environment: ${{ parameters.environment }}
+
+- task: AzurePowerShell@5
+  displayName: Stop ADF triggers
+  inputs:
+    azureSubscription: sc-zingyestates-${{ parameters.environment }}
+    ScriptType: FilePath
+    ScriptPath: $(Pipeline.Workspace)/adf-arm-template/PrePostDeploymentScript.ps1
+    ScriptArguments: >-
+      -armTemplate "$(Pipeline.Workspace)/adf-arm-template/ARMTemplateForFactory.json"
+      -ResourceGroupName "$(RESOURCE_GROUP_NAME)"
+      -DataFactoryName "$(DATA_FACTORY_NAME)"
+      -predeployment $true
+      -deleteDeployment $false
+    azurePowerShellVersion: LatestVersion
+    pwsh: true
+
+- task: AzureResourceManagerTemplateDeployment@3
+  displayName: Deploy ADF ARM template
+  inputs:
+    deploymentScope: Resource Group
+    azureResourceManagerConnection: sc-zingyestates-${{ parameters.environment }}
+    subscriptionId: $(SUBSCRIPTION_ID)
+    action: Create Or Update Resource Group
+    resourceGroupName: $(RESOURCE_GROUP_NAME)
+    location: $(LOCATION)
+    templateLocation: Linked artifact
+    csmFile: $(Pipeline.Workspace)/adf-arm-template/ARMTemplateForFactory.json
+    csmParametersFile: $(Pipeline.Workspace)/adf-arm-template/ARMTemplateParametersForFactory.json
+    deploymentMode: Incremental
+    overrideParameters: >-
+      -factoryName "$(DATA_FACTORY_NAME)"
+      -dataFactory_location "$(LOCATION)"
+      -ls_adls_lake_properties_typeProperties_url "https://$(STORAGE_ACCOUNT_NAME).dfs.core.windows.net/"
+      -ls_keyvault_properties_typeProperties_baseUrl "$(KEY_VAULT_URI)"
+      -ls_databricks_properties_typeProperties_domain "$(DATABRICKS_WORKSPACE_URL)"
+      -ls_databricks_properties_typeProperties_workspaceResourceId "$(DATABRICKS_WORKSPACE_ID)"
+      -ls_synapse_dedicated_properties_typeProperties_server "$(SYNAPSE_DEDICATED_ENDPOINT)"
+      -dataFactory_properties_globalParameters_environment_value "${{ parameters.environment }}"
+      -dataFactory_properties_globalParameters_databricks_job_id_value "${{ parameters.databricksJobId }}"
+      -dataFactory_properties_globalParameters_storage_account_value "$(STORAGE_ACCOUNT_NAME)"
+      -dataFactory_properties_globalParameters_synapse_dedicated_enabled_value $(SYNAPSE_DEDICATED_ENABLED)
+
+- task: AzurePowerShell@5
+  displayName: Clean up and restart ADF triggers
+  inputs:
+    azureSubscription: sc-zingyestates-${{ parameters.environment }}
+    ScriptType: FilePath
+    ScriptPath: $(Pipeline.Workspace)/adf-arm-template/PrePostDeploymentScript.ps1
+    ScriptArguments: >-
+      -armTemplate "$(Pipeline.Workspace)/adf-arm-template/ARMTemplateForFactory.json"
+      -ResourceGroupName "$(RESOURCE_GROUP_NAME)"
+      -DataFactoryName "$(DATA_FACTORY_NAME)"
+      -predeployment $false
+      -deleteDeployment $true
+    azurePowerShellVersion: LatestVersion
+    pwsh: true

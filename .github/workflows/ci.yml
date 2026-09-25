@@ -1,0 +1,157 @@
+# Continuous integration: runs on every push and pull request. Needs no Azure
+# or Datadog credentials. Mirrors the CI stage of azure-pipelines.yml.
+name: CI
+
+on:
+  push:
+    branches: [main, develop, "feature/**"]
+    paths-ignore: ["docs/**", "**.md", "powerbi/**"]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TERRAFORM_VERSION: "1.9.8"
+  TFLINT_VERSION: "v0.53.0"
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20"
+  ADF_BUILD_FACTORY_ID: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-zingyestates-dev-data/providers/Microsoft.DataFactory/factories/adf-zingy-dev-ze01
+
+jobs:
+  terraform:
+    name: Terraform (${{ matrix.directory }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        directory: [terraform, datadog]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: fmt
+        run: terraform -chdir=${{ matrix.directory }} fmt -check -recursive
+
+      - name: init + validate
+        run: |
+          terraform -chdir=${{ matrix.directory }} init -backend=false -input=false
+          terraform -chdir=${{ matrix.directory }} validate
+
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: ${{ env.TFLINT_VERSION }}
+
+      - name: TFLint
+        run: |
+          tflint --init --config "$GITHUB_WORKSPACE/.tflint.hcl"
+          tflint --chdir=${{ matrix.directory }} --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl"
+        env:
+          GITHUB_TOKEN: ${{ github.token }} # avoids rate limits when downloading plugins
+
+  security:
+    name: Security scans
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Checkov (Terraform)
+        run: |
+          pip install --quiet checkov==3.2.296
+          checkov --directory terraform --framework terraform --config-file .checkov.yml --quiet --compact
+
+      - name: Gitleaks
+        run: |
+          curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar -xz gitleaks
+          ./gitleaks detect --source . --no-banner --redact --verbose
+
+  python:
+    name: PySpark lint, tests, wheel
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Ruff
+        run: |
+          ruff check . --output-format=github
+          ruff format --check databricks tests
+
+      - name: Unit and Spark tests
+        run: pytest --junitxml=test-results/pytest.xml
+
+      - name: Test summary
+        if: always()
+        run: |
+          python - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          import xml.etree.ElementTree as ET
+          s = ET.parse("test-results/pytest.xml").getroot()
+          s = s if s.tag == "testsuite" else s[0]
+          print(f"### Python tests\n\n| tests | failures | errors | skipped | time |\n|---|---|---|---|---|")
+          print(f"| {s.get('tests')} | {s.get('failures')} | {s.get('errors')} | {s.get('skipped')} | {float(s.get('time')):.0f}s |")
+          EOF
+
+      - name: Build wheel
+        run: python -m build --wheel --outdir dist databricks
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zingyestates-wheel
+          path: dist/*.whl
+
+  adf:
+    name: Data Factory validate + export
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: adf
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: adf/package-lock.json
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Validate
+        run: npm run build -- validate "$GITHUB_WORKSPACE/adf" "$ADF_BUILD_FACTORY_ID"
+
+      - name: Export ARM template
+        run: npm run build -- export "$GITHUB_WORKSPACE/adf" "$ADF_BUILD_FACTORY_ID" ArmTemplate
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adf-arm-template
+          path: adf/ArmTemplate

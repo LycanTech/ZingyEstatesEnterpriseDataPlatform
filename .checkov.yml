@@ -1,0 +1,39 @@
+# Checkov configuration for terraform/. Every skip records why the finding does
+# not apply or is an accepted, time-boxed risk. Review during security sign-off
+# (docs/security.md).
+skip-check:
+  # --- Customer-managed keys --------------------------------------------------
+  # Microsoft-managed keys with infrastructure (double) encryption on the lake.
+  # Revisit if policy requires CMK: needs a key-vault key, rotation and access
+  # policies for every service identity.
+  - CKV2_AZURE_1    # storage CMK
+  - CKV2_AZURE_18   # storage CMK
+  - CKV2_AZURE_15   # data factory CMK
+  - CKV2_AZURE_48   # databricks DBFS root CMK
+  - CKV_AZURE_240   # synapse workspace CMK
+
+  # --- Public network access (accepted until private build agents exist) ----
+  # Endpoints stay reachable from Microsoft-hosted CI agents but are firewalled
+  # (default Deny + trusted instances). Controlled by public_network_access_enabled.
+  - CKV_AZURE_59    # storage public access
+  - CKV_AZURE_189   # key vault public access
+  - CKV_AZURE_109   # key vault firewall allows trusted services
+  - CKV_AZURE_104   # data factory public network
+  - CKV_AZURE_158   # databricks front-end private link
+  - CKV2_AZURE_19   # synapse firewall rules (corporate ranges + temporary CI rule)
+
+  # --- Not applicable / covered elsewhere ------------------------------------
+  - CKV_AZURE_206   # replication chosen per environment (prod = RAGZRS)
+  - CKV_AZURE_41    # key vault secret expiry: secrets are created out-of-band
+  - CKV_AZURE_114   # key vault secret content type: as above
+  - CKV_AZURE_33    # queue logging: no queues are used
+  - CKV2_AZURE_21   # blob read logging: enabled via the blobServices diagnostic
+                    # setting (modules/diagnostics), which Checkov cannot correlate
+  - CKV_AZURE_157   # synapse exfiltration protection: would require managed
+                    # private endpoints for every target; lake access is via
+                    # trusted-instance rules instead
+  - CKV2_AZURE_31   # subnet NSG: Databricks subnets get their NSG through
+                    # azurerm_subnet_network_security_group_association, which
+                    # this graph check does not follow for for_each subnets
+  - CKV2_AZURE_52   # synapse vulnerability assessment: needs Defender for SQL
+                    # and a scan-results storage path; enable with Defender

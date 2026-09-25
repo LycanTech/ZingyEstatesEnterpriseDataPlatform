@@ -1,0 +1,133 @@
+# One environment's deployment. Order:
+#   Plan (Azure + Datadog)  ->  Infrastructure (approval gate, apply plans)
+#     -> Databricks bundle  -> Data Factory (needs the Databricks job ID)
+#     -> Synapse SQL
+#     -> Smoke test (optional: runs pl_master_daily end to end)
+#
+# Only the Infrastructure job targets the Azure DevOps environment, so approvals
+# are requested once per stage.
+#
+# Per environment you need (docs/environments.md):
+#   service connection  sc-zingyestates-<env>   (workload identity federation)
+#   variable group      vg-zingyestates-<env>
+#   environment         zingyestates-<env>       (approvals on uat/prod)
+
+parameters:
+- name: environment
+  type: string
+  values: [dev, qa, uat, prod]
+- name: dependsOn
+  type: object
+  default: []
+- name: condition
+  type: string
+  default: succeeded()
+- name: deployDataFactory
+  type: boolean
+  default: true
+- name: runSmokeTest
+  type: boolean
+  default: false
+
+stages:
+- stage: Deploy_${{ parameters.environment }}
+  displayName: Deploy ${{ upper(parameters.environment) }}
+  dependsOn: ${{ parameters.dependsOn }}
+  condition: ${{ parameters.condition }}
+  variables:
+  - group: vg-zingyestates-${{ parameters.environment }}
+
+  jobs:
+  - job: Plan
+    displayName: Terraform plan
+    pool: { vmImage: $(vmImage) }
+    steps:
+    - template: ../templates/terraform-plan.yml
+      parameters:
+        environment: ${{ parameters.environment }}
+        directory: terraform
+        varFile: environments/${{ parameters.environment }}/terraform.tfvars
+        backendConfig: environments/${{ parameters.environment }}/backend.hcl
+        artifactName: tfplan-azure-${{ parameters.environment }}
+    - template: ../templates/terraform-plan.yml
+      parameters:
+        environment: ${{ parameters.environment }}
+        directory: datadog
+        varFile: environments/${{ parameters.environment }}.tfvars
+        backendConfig: environments/${{ parameters.environment }}.backend.hcl
+        artifactName: tfplan-datadog-${{ parameters.environment }}
+
+  - deployment: Infrastructure
+    displayName: Apply infrastructure
+    dependsOn: Plan
+    environment: zingyestates-${{ parameters.environment }}
+    pool: { vmImage: $(vmImage) }
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - checkout: self
+          - template: ../templates/terraform-apply.yml
+            parameters:
+              environment: ${{ parameters.environment }}
+              directory: terraform
+              backendConfig: environments/${{ parameters.environment }}/backend.hcl
+              artifactName: tfplan-azure-${{ parameters.environment }}
+          - template: ../templates/terraform-apply.yml
+            parameters:
+              environment: ${{ parameters.environment }}
+              directory: datadog
+              backendConfig: environments/${{ parameters.environment }}.backend.hcl
+              artifactName: tfplan-datadog-${{ parameters.environment }}
+
+  - job: Databricks
+    displayName: Deploy Databricks bundle
+    dependsOn: Infrastructure
+    pool: { vmImage: $(vmImage) }
+    steps:
+    - template: ../templates/databricks-deploy.yml
+      parameters:
+        environment: ${{ parameters.environment }}
+
+  - ${{ if parameters.deployDataFactory }}:
+    - job: DataFactory
+      displayName: Deploy Data Factory
+      dependsOn: Databricks
+      pool: { vmImage: $(vmImage) }
+      variables:
+        databricksJobId: $[ dependencies.Databricks.outputs['bundle.databricksJobId'] ]
+      steps:
+      - template: ../templates/adf-deploy.yml
+        parameters:
+          environment: ${{ parameters.environment }}
+          databricksJobId: $(databricksJobId)
+
+  - job: Synapse
+    displayName: Deploy Synapse SQL
+    dependsOn: Infrastructure
+    pool: { vmImage: $(vmImage) }
+    steps:
+    - template: ../templates/synapse-deploy.yml
+      parameters:
+        environment: ${{ parameters.environment }}
+
+  - ${{ if and(parameters.runSmokeTest, parameters.deployDataFactory) }}:
+    - job: SmokeTest
+      displayName: End-to-end smoke test
+      dependsOn: [DataFactory, Synapse]
+      pool: { vmImage: $(vmImage) }
+      timeoutInMinutes: 120
+      steps:
+      - template: ../templates/terraform-outputs.yml
+        parameters:
+          environment: ${{ parameters.environment }}
+      - task: AzureCLI@2
+        displayName: Run pl_master_daily
+        inputs:
+          azureSubscription: sc-zingyestates-${{ parameters.environment }}
+          scriptType: bash
+          scriptLocation: scriptPath
+          scriptPath: scripts/smoke-test-adf.sh
+        env:
+          RESOURCE_GROUP: $(RESOURCE_GROUP_NAME)
+          ADF_NAME: $(DATA_FACTORY_NAME)

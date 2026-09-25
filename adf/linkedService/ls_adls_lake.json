@@ -1,0 +1,15 @@
+{
+    "name": "ls_adls_lake",
+    "properties": {
+        "description": "ADLS Gen2 lake, authenticated with the factory managed identity.",
+        "type": "AzureBlobFS",
+        "annotations": [],
+        "connectVia": {
+            "referenceName": "ir-managed-vnet",
+            "type": "IntegrationRuntimeReference"
+        },
+        "typeProperties": {
+            "url": "https://stzingydevze01dl.dfs.core.windows.net/"
+        }
+    }
+}

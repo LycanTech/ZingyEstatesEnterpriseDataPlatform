@@ -1,0 +1,11 @@
+parameters:
+  datadogDirectory: datadog
+steps:
+- task: TerraformInstaller@1
+  inputs: { terraformVersion: $(terraformVersion) }
+- script: |
+    set -euo pipefail
+    terraform -chdir=${{ parameters.datadogDirectory }} fmt -check -recursive
+    terraform -chdir=${{ parameters.datadogDirectory }} init -backend=false -input=false
+    terraform -chdir=${{ parameters.datadogDirectory }} validate
+  displayName: Datadog Terraform validate

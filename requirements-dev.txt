@@ -1,0 +1,9 @@
+# Local development and CI. Versions match Databricks Runtime 15.4 LTS
+# (Spark 3.5, Delta 3.2, Python 3.11).
+pyspark==3.5.3
+delta-spark==3.2.1
+datadog==0.50.2
+pytest==8.3.3
+ruff==0.7.4
+build==1.2.2
+pre-commit==4.0.1

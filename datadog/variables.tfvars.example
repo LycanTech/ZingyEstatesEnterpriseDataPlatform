@@ -1,0 +1,9 @@
+# Example for local runs only. CI uses environments/<env>.tfvars plus TF_VAR_* from
+# the Azure DevOps variable group. Copy to variables.tfvars (git-ignored).
+datadog_api_url     = "https://api.datadoghq.com/"
+azure_tenant_id     = "<AZURE-TENANT-ID>"
+azure_client_id     = "<DATADOG-AZURE-APP-CLIENT-ID>"
+azure_client_secret = "<set via TF_VAR_azure_client_secret instead of this file>"
+environment         = "dev"
+company             = "zingyestates"
+notification_handle = "@teams-zingyestates"

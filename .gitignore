@@ -1,0 +1,47 @@
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*.auto.tfvars
+datadog/variables.tfvars
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Databricks bundles
+.databricks/
+
+# ADF build
+adf/node_modules/
+adf/ArmTemplate/
+adf/downloads/
+
+# Local lake and Spark
+.local-lake/
+spark-warehouse/
+metastore_db/
+derby.log
+
+# Secrets and editor state
+.env
+*.pem
+.DS_Store
+.idea/
+
+# GitHub environment values (scripts/setup-github-environments.sh)
+.github/env/

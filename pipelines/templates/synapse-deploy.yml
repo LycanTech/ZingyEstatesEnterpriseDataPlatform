@@ -1,0 +1,33 @@
+parameters:
+- name: environment
+  type: string
+
+steps:
+- script: |
+    set -euo pipefail
+    curl -fsSL "https://github.com/microsoft/go-sqlcmd/releases/download/v$(sqlcmdVersion)/sqlcmd-linux-amd64.tar.bz2" \
+      | sudo tar -xj -C /usr/local/bin sqlcmd
+    sqlcmd --version
+  displayName: Install go-sqlcmd
+
+- template: terraform-outputs.yml
+  parameters:
+    environment: ${{ parameters.environment }}
+
+- task: AzureCLI@2
+  displayName: Deploy Synapse SQL (${{ parameters.environment }})
+  inputs:
+    azureSubscription: sc-zingyestates-${{ parameters.environment }}
+    scriptType: bash
+    scriptLocation: scriptPath
+    scriptPath: scripts/deploy-synapse.sh
+  env:
+    RESOURCE_GROUP: $(RESOURCE_GROUP_NAME)
+    SYNAPSE_WORKSPACE: $(SYNAPSE_WORKSPACE_NAME)
+    SERVERLESS_ENDPOINT: $(SYNAPSE_SERVERLESS_ENDPOINT)
+    DEDICATED_ENDPOINT: $(SYNAPSE_DEDICATED_ENDPOINT)
+    DEDICATED_POOL: $(SYNAPSE_DEDICATED_POOL_NAME)
+    STORAGE_ACCOUNT: $(STORAGE_ACCOUNT_NAME)
+    ADF_NAME: $(DATA_FACTORY_NAME)
+    REPORTING_GROUP_NAME: $(reportingGroupName)
+    SYNAPSE_MASTER_KEY_PASSWORD: $(synapseMasterKeyPassword)

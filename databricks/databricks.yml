@@ -1,0 +1,68 @@
+# Databricks Asset Bundle for the ZingyEstates medallion jobs.
+#
+#   databricks bundle validate -t dev
+#   databricks bundle deploy   -t dev --var storage_account=<name>
+#   databricks bundle run      -t dev zingy_daily_medallion
+#
+# The workspace host comes from DATABRICKS_HOST (set by the pipeline from the
+# Terraform output databricks_workspace_url) so no URL is hard-coded here.
+
+bundle:
+  name: zingyestates-data-platform
+
+include:
+  - resources/*.yml
+
+artifacts:
+  zingyestates_wheel:
+    type: whl
+    path: .
+    build: python -m build --wheel
+
+variables:
+  environment:
+    description: Platform environment (dev, qa, uat, prod)
+  storage_account:
+    description: ADLS Gen2 account from Terraform output storage_account_name
+  node_type:
+    description: Worker VM size
+    default: Standard_D4ds_v5
+  max_workers:
+    description: Autoscaling upper bound
+    default: 2
+  secret_scope:
+    description: Secret scope holding datadog-api-key
+    default: zingy-platform
+  alert_email:
+    description: Job failure notification address
+    default: data-engineering@zingyestates.example
+
+targets:
+  dev:
+    mode: development
+    default: true
+    variables:
+      environment: dev
+
+  qa:
+    mode: production
+    variables:
+      environment: qa
+    workspace:
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
+
+  uat:
+    mode: production
+    variables:
+      environment: uat
+      max_workers: 4
+    workspace:
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
+
+  prod:
+    mode: production
+    variables:
+      environment: prod
+      max_workers: 8
+    workspace:
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}

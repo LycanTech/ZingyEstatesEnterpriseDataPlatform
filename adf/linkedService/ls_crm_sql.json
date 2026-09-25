@@ -1,0 +1,22 @@
+{
+    "name": "ls_crm_sql",
+    "properties": {
+        "description": "ZingyEstates CRM (Azure SQL). Connection string held in Key Vault secret crm-sql-connection-string.",
+        "type": "AzureSqlDatabase",
+        "annotations": [],
+        "connectVia": {
+            "referenceName": "ir-managed-vnet",
+            "type": "IntegrationRuntimeReference"
+        },
+        "typeProperties": {
+            "connectionString": {
+                "type": "AzureKeyVaultSecret",
+                "store": {
+                    "referenceName": "ls_keyvault",
+                    "type": "LinkedServiceReference"
+                },
+                "secretName": "crm-sql-connection-string"
+            }
+        }
+    }
+}

@@ -1,0 +1,102 @@
+# Continuous delivery to Azure. Runs after CI succeeds on develop/main, or on demand.
+#
+#   develop  -> dev
+#   main     -> qa -> uat (approval) -> prod (approval)
+#
+# Disabled until the repository variable DEPLOY_ENABLED is "true", so a fresh
+# fork or clone never tries to reach Azure. Setup: docs/cicd-github-actions.md
+name: CD
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy (deploys only this one)
+        type: choice
+        options: [dev, qa, uat, prod]
+        required: true
+
+permissions:
+  contents: read
+  id-token: write # Azure OIDC
+
+concurrency:
+  group: cd-${{ github.event.workflow_run.head_branch || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve target
+    runs-on: ubuntu-24.04
+    if: >-
+      vars.DEPLOY_ENABLED == 'true' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
+    outputs:
+      ref: ${{ steps.r.outputs.ref }}
+      branch: ${{ steps.r.outputs.branch }}
+      manual: ${{ steps.r.outputs.manual }}
+    steps:
+      - id: r
+        env:
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            printf 'ref=%s\nbranch=%s\nmanual=true\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          else
+            printf 'ref=%s\nbranch=%s\nmanual=false\n' "$RUN_SHA" "$RUN_BRANCH" >> "$GITHUB_OUTPUT"
+          fi
+
+  dev:
+    needs: resolve
+    if: >-
+      (needs.resolve.outputs.manual == 'false' && needs.resolve.outputs.branch == 'develop') ||
+      inputs.environment == 'dev'
+    uses: ./.github/workflows/deploy-environment.yml
+    with:
+      environment: dev
+      ref: ${{ needs.resolve.outputs.ref }}
+      run_smoke_test: false
+    secrets: inherit
+
+  qa:
+    needs: resolve
+    if: >-
+      (needs.resolve.outputs.manual == 'false' && needs.resolve.outputs.branch == 'main') ||
+      inputs.environment == 'qa'
+    uses: ./.github/workflows/deploy-environment.yml
+    with:
+      environment: qa
+      ref: ${{ needs.resolve.outputs.ref }}
+      run_smoke_test: true
+    secrets: inherit
+
+  uat:
+    needs: [resolve, qa]
+    if: >-
+      !cancelled() && needs.resolve.result == 'success' &&
+      ((needs.resolve.outputs.manual == 'false' && needs.qa.result == 'success') || inputs.environment == 'uat')
+    uses: ./.github/workflows/deploy-environment.yml
+    with:
+      environment: uat
+      ref: ${{ needs.resolve.outputs.ref }}
+      run_smoke_test: true
+    secrets: inherit
+
+  prod:
+    needs: [resolve, uat]
+    if: >-
+      !cancelled() && needs.resolve.result == 'success' &&
+      ((needs.resolve.outputs.manual == 'false' && needs.uat.result == 'success') ||
+       (inputs.environment == 'prod' && needs.resolve.outputs.branch == 'main'))
+    uses: ./.github/workflows/deploy-environment.yml
+    with:
+      environment: prod
+      ref: ${{ needs.resolve.outputs.ref }}
+      run_smoke_test: false
+    secrets: inherit

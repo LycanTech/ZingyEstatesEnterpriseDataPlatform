@@ -1,0 +1,35 @@
+# Applies the plan produced by terraform-plan.yml in the same run.
+parameters:
+- name: environment
+  type: string
+- name: directory
+  type: string
+- name: backendConfig
+  type: string
+- name: artifactName
+  type: string
+
+steps:
+- task: TerraformInstaller@1
+  displayName: Install Terraform
+  inputs: { terraformVersion: $(terraformVersion) }
+
+- download: current
+  artifact: ${{ parameters.artifactName }}
+  displayName: Download plan
+
+- task: AzureCLI@2
+  displayName: Terraform apply (${{ parameters.directory }}, ${{ parameters.environment }})
+  inputs:
+    azureSubscription: sc-zingyestates-${{ parameters.environment }}
+    scriptType: bash
+    scriptLocation: inlineScript
+    addSpnToEnvironment: true
+    inlineScript: |
+      set -euo pipefail
+      source pipelines/scripts/arm-env.sh
+      terraform -chdir=${{ parameters.directory }} init -backend-config=${{ parameters.backendConfig }}
+      terraform -chdir=${{ parameters.directory }} apply "$(Pipeline.Workspace)/${{ parameters.artifactName }}/tfplan"
+  env:
+    DD_API_KEY: $(DD_API_KEY)
+    DD_APP_KEY: $(DD_APP_KEY)

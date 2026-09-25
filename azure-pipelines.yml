@@ -1,0 +1,73 @@
+# ZingyEstates Enterprise Data Platform - CI/CD
+#
+#   PR to develop/main  -> CI only (validate, test, build)
+#   push to develop     -> CI -> DEV
+#   push to main        -> CI -> QA -> UAT (approval) -> PROD (approval)
+#
+# Approvals and checks live on the Azure DevOps environments zingyestates-<env>.
+# See docs/environments.md for the service connections and variable groups each
+# stage needs.
+
+trigger:
+  branches:
+    include: [main, develop]
+  paths:
+    exclude: ['docs/*', '*.md', 'powerbi/*', 'notebooks/*']
+
+pr:
+  branches:
+    include: [main, develop]
+
+variables:
+- template: pipelines/variables/common.yml
+
+stages:
+- stage: CI
+  displayName: Validate, test and build
+  jobs:
+  - job: Terraform
+    displayName: Terraform (Azure + Datadog)
+    pool: { vmImage: $(vmImage) }
+    steps:
+    - template: pipelines/templates/terraform-validate.yml
+      parameters: { directory: terraform }
+    - template: pipelines/templates/datadog-validate.yml
+    - template: pipelines/templates/security-scan.yml
+
+  - job: Python
+    displayName: PySpark lint, tests, wheel
+    pool: { vmImage: $(vmImage) }
+    steps:
+    - template: pipelines/templates/python-ci.yml
+
+  - job: DataFactory
+    displayName: ADF validate and export
+    pool: { vmImage: $(vmImage) }
+    steps:
+    - template: pipelines/templates/adf-build.yml
+
+- template: pipelines/stages/deploy-environment.yml
+  parameters:
+    environment: dev
+    dependsOn: [CI]
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+    runSmokeTest: false
+
+- template: pipelines/stages/deploy-environment.yml
+  parameters:
+    environment: qa
+    dependsOn: [CI]
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    runSmokeTest: true
+
+- template: pipelines/stages/deploy-environment.yml
+  parameters:
+    environment: uat
+    dependsOn: [Deploy_qa]
+    runSmokeTest: true
+
+- template: pipelines/stages/deploy-environment.yml
+  parameters:
+    environment: prod
+    dependsOn: [Deploy_uat]
+    runSmokeTest: false

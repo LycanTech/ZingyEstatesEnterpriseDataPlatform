@@ -1,0 +1,36 @@
+{
+    "Microsoft.DataFactory/factories": {
+        "properties": {
+            "globalParameters": {
+                "*": {
+                    "value": "="
+                }
+            }
+        },
+        "location": "="
+    },
+    "Microsoft.DataFactory/factories/linkedServices": {
+        "*": {
+            "properties": {
+                "typeProperties": {
+                    "url": "=",
+                    "baseUrl": "=",
+                    "domain": "=",
+                    "workspaceResourceId": "=",
+                    "server": "=",
+                    "database": "="
+                }
+            }
+        }
+    },
+    "Microsoft.DataFactory/factories/triggers": {
+        "properties": {
+            "typeProperties": {
+                "recurrence": {
+                    "interval": "=",
+                    "frequency": "="
+                }
+            }
+        }
+    }
+}
