@@ -48,7 +48,7 @@ jobs:
           terraform -chdir=${{ matrix.directory }} init -backend=false -input=false
           terraform -chdir=${{ matrix.directory }} validate
 
-      - uses: terraform-linters/setup-tflint@v4
+      - uses: terraform-linters/setup-tflint@v6
         with:
           tflint_version: ${{ env.TFLINT_VERSION }}
 
