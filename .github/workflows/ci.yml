@@ -123,7 +123,7 @@ jobs:
       - name: Build wheel
         run: python -m build --wheel --outdir dist databricks
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: zingyestates-wheel
           path: dist/*.whl
@@ -151,7 +151,7 @@ jobs:
       - name: Export ARM template
         run: npm run build -- export "$GITHUB_WORKSPACE/adf" "$ADF_BUILD_FACTORY_ID" ArmTemplate
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: adf-arm-template
           path: adf/ArmTemplate
