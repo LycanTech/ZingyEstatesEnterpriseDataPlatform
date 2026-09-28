@@ -6,5 +6,5 @@ resource "datadog_integration_azure" "zingyestates" {
   resource_collection_enabled = true
   usage_metrics_enabled       = true
   automute                    = true
-  host_filters                = "company:zingyestates,env:${var.environment}"
+  host_filters                = "company:${var.company},environment:${var.environment}" # Azure resource tags (terraform/main.tf)
 }

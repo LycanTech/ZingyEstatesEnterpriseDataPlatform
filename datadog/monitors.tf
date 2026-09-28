@@ -2,7 +2,7 @@ locals { tags = ["company:${var.company}", "env:${var.environment}", "managed-by
 resource "datadog_monitor" "adf_failures" {
   name    = "ZingyEstates - ADF pipeline failure"
   type    = "query alert"
-  query   = "sum(last_15m):azure.datafactory.pipeline_failed{company:${var.company},env:${var.environment}} > 0"
+  query   = "sum(last_15m):azure.datafactory_factories.pipeline_failed_runs{company:${var.company},environment:${var.environment}} > 0"
   message = "🚨 ZingyEstates ADF pipeline failure. Investigate ADF, Databricks, data quality, and downstream loads. Runbook: docs/runbooks/adf-pipeline-failure.md ${var.notification_handle}"
   monitor_thresholds { critical = 0 }
   evaluation_delay    = 300
