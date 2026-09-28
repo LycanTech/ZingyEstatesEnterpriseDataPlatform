@@ -186,3 +186,33 @@ pre-commit run --all-files
 **Fix now:** `make clean`, or `rm -rf .local-lake`, then rerun the demo.
 
 **Prevent:** None needed. `.local-lake` is disposable and git-ignored.
+
+## LD-15 Datadog Agent install on Windows fails: `An exception occurred during a WebClient request`
+
+**Symptom:** Running Datadog's Windows install command fails on the first line:
+
+```
+(New-Object System.Net.WebClient).DownloadFile('https://install.datadoghq.com/datadog-installer-x86_64.exe', 'C:\Windows\SystemTemp\datadog-installer-x86_64.exe');
+Exception calling "DownloadFile" with "2" argument(s): "An exception occurred during a WebClient request."
+```
+
+**Cause:** PowerShell isn't elevated. The download works, but the destination `C:\Windows\SystemTemp` is admin-only, so the real error (`Access to the path ... is denied`) is hidden inside `WebClient`. Less common causes are no network access to `install.datadoghq.com`, a proxy, or TLS 1.2 disabled on old Windows PowerShell 5.1 installs.
+
+**Fix now:**
+
+```powershell
+# 1. Check elevation. Must print True. If not: Start -> PowerShell -> right-click -> Run as administrator
+([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
+# 2. If it still fails, find the real error:
+Invoke-WebRequest -Uri 'https://install.datadoghq.com/datadog-installer-x86_64.exe' -Method Head -UseBasicParsing
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12   # old PS 5.1 only
+```
+
+Then paste Datadog's **full** install command (Datadog → Integrations → Agent → Windows) in the elevated window. The download line is only the first part; the rest sets the API key and site. The command puts the API key on the command line, so clear the PowerShell history afterwards:
+
+```powershell
+Remove-Item (Get-PSReadLineOption).HistorySavePath
+```
+
+**Prevent:** The platform doesn't need a Windows host agent. Local runs use the agent container (`docker compose --profile observability up -d datadog-agent`, with `DD_API_KEY` in the git-ignored `.env`), and Azure is monitored through the Datadog Azure integration. Install the host agent only to monitor the workstation itself.

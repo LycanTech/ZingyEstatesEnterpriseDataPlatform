@@ -11,7 +11,7 @@ Scenario IDs (for example `CI-04`) are stable, so you can cite them in incidents
 
 | File | Covers |
 |---|---|
-| [01-local-development.md](01-local-development.md) | Docker, Spark, Java, Windows/OneDrive, line endings, notebooks (`LD-*`) |
+| [01-local-development.md](01-local-development.md) | Docker, Spark, Java, Windows/OneDrive, line endings, notebooks, Datadog Agent on Windows (`LD-*`) |
 | [02-ci-github-actions.md](02-ci-github-actions.md) | CI failures, Dependabot, pushing, workflow behaviour (`CI-*`) |
 | [03-cd-deployments.md](03-cd-deployments.md) | GitHub CD and Azure DevOps deployments, OIDC, approvals (`CD-*`) |
 | [04-terraform-and-azure.md](04-terraform-and-azure.md) | State, naming, quotas, RBAC, networking, provider upgrades (`TF-*`) |
@@ -31,6 +31,7 @@ Scenario IDs (for example `CI-04`) are stable, so you can cite them in incidents
 | `bash\r: No such file or directory` | [LD-05](01-local-development.md#ld-05-shell-scripts-fail-with-bashr-no-such-file-or-directory) |
 | `JAVA_GATEWAY_EXITED` / Java not found | [LD-03](01-local-development.md#ld-03-java_gateway_exited-or-java-not-found-running-pytest-natively) |
 | README or another file shows as binary on GitHub | [LD-06](01-local-development.md#ld-06-a-file-shows-as-binary-on-github-or-contains-null-bytes) |
+| Datadog Agent install: `An exception occurred during a WebClient request` | [LD-15](01-local-development.md#ld-15-datadog-agent-install-on-windows-fails-an-exception-occurred-during-a-webclient-request) |
 | `locked provider ... does not match configured version constraint` | [CI-03](02-ci-github-actions.md#ci-03-terraform-init-fails-locked-provider--does-not-match-configured-version-constraint) |
 | `refusing to allow an OAuth App to create or update workflow` | [CI-10](02-ci-github-actions.md#ci-10-push-rejected-refusing-to-allow-an-oauth-app-to-create-or-update-workflow) |
 | CD run shows **skipped** | [CD-01](03-cd-deployments.md#cd-01-cd-workflow-is-skipped) |
