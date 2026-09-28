@@ -8,6 +8,7 @@ Central observability for Azure Data Factory, ADLS, Databricks, Synapse, and the
 | `monitors.tf` | ADF failure, DQ rejection rate, freshness, Databricks failure, duration. Each links to its runbook. |
 | `slo.tf` | Pipeline success (99.5%) and freshness (99.0%) SLOs over 30 days |
 | `dashboards.tf` | Data platform dashboard for each environment |
+| `dashboards/zingyestates-platform.json` | Importable dashboard with an `env` selector (local to prod), for local demo runs or manual use |
 | `metrics-contract.md` | Metric names and required tags, emitted by `databricks/src/zingyestates/metrics.py` |
 | `environments/<env>.tfvars` / `<env>.backend.hcl` | Per-environment alert routing and remote state |
 

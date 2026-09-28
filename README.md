@@ -39,7 +39,7 @@ docker compose --profile observability up -d datadog-agent
 docker compose run --rm platform
 ```
 
-In Datadog, open **Metrics → Explorer** and search for `zingyestates.` with `env:local`. For step-by-step instructions and troubleshooting, see [View the demo's metrics in Datadog](docs/local-development.md#view-the-demos-metrics-in-datadog).
+In Datadog, open **Metrics → Explorer** and search for `zingyestates.` with `env:local`. For a full dashboard, import [`datadog/dashboards/zingyestates-platform.json`](datadog/dashboards/zingyestates-platform.json) (Dashboards → New Dashboard → Configure → Import dashboard JSON). For step-by-step instructions and troubleshooting, see [View the demo's metrics in Datadog](docs/local-development.md#view-the-demos-metrics-in-datadog).
 
 ## Repository
 

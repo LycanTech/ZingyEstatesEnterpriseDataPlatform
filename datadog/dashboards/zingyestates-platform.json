@@ -1,0 +1,203 @@
+{
+  "title": "ZingyEstates - Data Platform Metrics",
+  "description": "Medallion pipeline, data-quality and freshness metrics emitted by databricks/src/zingyestates/metrics.py. Use the env selector: local for the Docker demo, dev/qa/uat/prod for deployed environments.",
+  "layout_type": "ordered",
+  "template_variables": [
+    {
+      "name": "env",
+      "prefix": "env",
+      "available_values": [
+        "local",
+        "dev",
+        "qa",
+        "uat",
+        "prod"
+      ],
+      "default": "local"
+    }
+  ],
+  "widgets": [
+    {
+      "definition": {
+        "type": "note",
+        "content": "**ZingyEstates data platform.** Pick the environment at the top (`env`). The local Docker demo reports as `env:local`. Metrics follow `datadog/metrics-contract.md`. Set the time range to cover your last run; the local demo sends one burst of points per run.",
+        "background_color": "gray",
+        "font_size": "14",
+        "text_align": "left",
+        "show_tick": false,
+        "has_padding": true
+      }
+    },
+    {
+      "definition": {
+        "type": "query_value",
+        "title": "Pipeline runs",
+        "autoscale": true,
+        "precision": 0,
+        "requests": [
+          {
+            "q": "sum:zingyestates.data.pipeline.execution{$env}.as_count()",
+            "aggregator": "sum"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "query_value",
+        "title": "Successful runs",
+        "autoscale": true,
+        "precision": 0,
+        "requests": [
+          {
+            "q": "sum:zingyestates.data.pipeline.success{$env}.as_count()",
+            "aggregator": "sum"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "query_value",
+        "title": "Failed jobs",
+        "autoscale": true,
+        "precision": 0,
+        "requests": [
+          {
+            "q": "sum:zingyestates.databricks.job.failed{$env}.as_count()",
+            "aggregator": "sum"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "query_value",
+        "title": "Freshness (minutes)",
+        "autoscale": true,
+        "precision": 1,
+        "requests": [
+          {
+            "q": "max:zingyestates.data.freshness_minutes{$env}",
+            "aggregator": "last"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "toplist",
+        "title": "Rejection rate by entity",
+        "requests": [
+          {
+            "q": "top(max:zingyestates.data.quality.rejection_rate{$env} by {entity}, 10, 'max', 'desc')"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "toplist",
+        "title": "Records processed by entity (silver)",
+        "requests": [
+          {
+            "q": "top(max:zingyestates.data.quality.records_processed{$env} by {entity}, 10, 'max', 'desc')"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "toplist",
+        "title": "Records rejected by entity",
+        "requests": [
+          {
+            "q": "top(max:zingyestates.data.quality.records_rejected{$env} by {entity}, 10, 'max', 'desc')"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "toplist",
+        "title": "Duplicates removed by entity",
+        "requests": [
+          {
+            "q": "top(max:zingyestates.data.quality.duplicates{$env} by {entity}, 10, 'max', 'desc')"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "toplist",
+        "title": "Bronze rows ingested by entity",
+        "requests": [
+          {
+            "q": "top(max:zingyestates.databricks.records_processed{$env,zone:bronze} by {entity}, 10, 'max', 'desc')"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Step duration (seconds)",
+        "show_legend": true,
+        "requests": [
+          {
+            "q": "max:zingyestates.data.pipeline.duration_seconds{$env} by {pipeline}",
+            "display_type": "bars"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Rejection rate over time",
+        "show_legend": true,
+        "requests": [
+          {
+            "q": "max:zingyestates.data.quality.rejection_rate{$env} by {entity}",
+            "display_type": "line"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Records processed vs rejected",
+        "show_legend": true,
+        "requests": [
+          {
+            "q": "sum:zingyestates.data.quality.records_processed{$env}",
+            "display_type": "bars"
+          },
+          {
+            "q": "sum:zingyestates.data.quality.records_rejected{$env}",
+            "display_type": "bars"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Pipeline executions vs failures",
+        "show_legend": true,
+        "requests": [
+          {
+            "q": "sum:zingyestates.data.pipeline.execution{$env}.as_count()",
+            "display_type": "bars"
+          },
+          {
+            "q": "sum:zingyestates.databricks.job.failed{$env}.as_count()",
+            "display_type": "bars"
+          }
+        ]
+      }
+    }
+  ]
+}

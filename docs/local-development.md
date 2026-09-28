@@ -57,9 +57,14 @@ The output should include `Metrics backend: dogstatsd`. If it says `Metrics back
   - `zingyestates.data.pipeline.duration_seconds`
   - `zingyestates.data.freshness_minutes`
 - **Metrics → Summary:** lists every `zingyestates.*` metric and its tags.
-- **Dashboards → New Dashboard:** add widgets such as `avg:zingyestates.data.quality.rejection_rate{env:local} by {entity}`.
+- **Ready-made dashboard:** import [`datadog/dashboards/zingyestates-platform.json`](../datadog/dashboards/zingyestates-platform.json). It has run counts, failures, freshness, rejection rate, records processed and rejected, duplicates and bronze rows per entity, and step durations, with an `env` selector (default `local`).
+  - **In the UI:** Dashboards → **New Dashboard** → name it → **Configure** (gear icon, top right) → **Import dashboard JSON** → paste the file's contents. Choose **Past 1 Hour** (or a range that covers your last run).
+  - **With the API** (needs an application key in `DD_APP_KEY`):
+    ```bash
+    curl -s -X POST "https://api.${DD_SITE}/api/v1/dashboard"       -H "DD-API-KEY: ${DD_API_KEY}" -H "DD-APPLICATION-KEY: ${DD_APP_KEY}" -H "Content-Type: application/json"       -d @datadog/dashboards/zingyestates-platform.json | jq -r .url
+    ```
 
-The Terraform-managed dashboard filters on `env:dev|qa|uat|prod`, so local runs (`env:local`) don't appear on it.
+The local demo sends one burst of points per run, so charts show spikes at run times, not continuous lines. Run the demo a few times to see trends. The Terraform-managed dashboard (`datadog/dashboards.tf`) filters on `env:dev|qa|uat|prod`, so local runs don't appear on it; the imported dashboard covers both.
 
 **5. Stop the Agent:**
 
