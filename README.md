@@ -47,6 +47,7 @@ More options (dev container, notebooks, local Datadog agent): [docs/local-develo
 | [`.devcontainer/`](.devcontainer/) | VS Code dev container with every tool pre-installed |
 | [`notebooks/`](notebooks/) | Exploration notebook for the local lake |
 | [`docs/`](docs/) | Architecture, tooling, environments, security, operations, DR, runbooks |
+| [`docs/troubleshooting/`](docs/troubleshooting/) | About 150 scenarios with immediate fixes, grouped by area, with a symptom lookup and a maintenance calendar |
 
 ## CI/CD
 
@@ -105,6 +106,10 @@ Terraform, TFLint, Checkov, Azure CLI, Python 3.11, PySpark, Delta, Java 17, Ruf
 3. Set `name_suffix` and review `terraform/environments/<env>/terraform.tfvars`.
 4. Choose a CI/CD system. For GitHub Actions, run `scripts/setup-github-environments.sh` for each environment, then set `DEPLOY_ENABLED=true` ([guide](docs/cicd-github-actions.md)). For Azure DevOps, point a pipeline at `azure-pipelines.yml`. Then push to `develop`.
 5. Do the first-deployment steps: approve the private endpoints and load secrets ([docs/operations.md](docs/operations.md#first-deployment)).
+
+## When something breaks
+
+Start at [docs/troubleshooting/](docs/troubleshooting/README.md). Search it for the exact error text, or use the quick-lookup table. Each scenario lists the symptom, cause, commands to fix it now, and prevention. Alert-specific procedures are in [docs/runbooks/](docs/runbooks/).
 
 ## Important
 

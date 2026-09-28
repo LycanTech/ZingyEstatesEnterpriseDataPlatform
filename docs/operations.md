@@ -1,5 +1,7 @@
 # Operations
 
+> For failures not covered by the runbooks, see [troubleshooting/](troubleshooting/README.md): about 150 scenarios with immediate fixes, plus a maintenance calendar.
+
 ## Daily schedule
 
 | Time (UTC) | What | Owner |
