@@ -39,6 +39,8 @@ def main(argv: list[str] | None = None) -> None:
     results = {}
     for step, fn in (("bronze-ingestion", bronze.run), ("silver-transformation", silver.run), ("gold-modeling", gold.run)):
         metrics = Metrics.from_env("local", step)
+        if not results:
+            print(f"Metrics backend: {metrics.backend}")  # dogstatsd when DD_AGENT_HOST is set
         with metrics.pipeline_run():
             results[step] = fn(spark, cfg, args.run_date, metrics)
 

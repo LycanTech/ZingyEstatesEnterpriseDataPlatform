@@ -29,6 +29,18 @@ docker compose run --rm platform pytest     # 21 unit + Spark tests
 
 More options (dev container, notebooks, local Datadog agent): [docs/local-development.md](docs/local-development.md)
 
+### See the demo's metrics in Datadog
+
+The `datadog-agent` container forwards metrics to your Datadog account. You view them on the Datadog website, not in Docker.
+
+```bash
+cp .env.example .env        # set DD_API_KEY, DD_SITE and DD_AGENT_HOST=datadog-agent
+docker compose --profile observability up -d datadog-agent
+docker compose run --rm platform
+```
+
+In Datadog, open **Metrics → Explorer** and search for `zingyestates.` with `env:local`. For step-by-step instructions and troubleshooting, see [View the demo's metrics in Datadog](docs/local-development.md#view-the-demos-metrics-in-datadog).
+
 ## Repository
 
 | Path | What it is |
