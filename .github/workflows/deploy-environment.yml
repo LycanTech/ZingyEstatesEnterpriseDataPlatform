@@ -143,7 +143,7 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
-      - uses: azure/login@v2
+      - uses: azure/login@v3
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
@@ -216,7 +216,7 @@ jobs:
           npm run build -- validate "$GITHUB_WORKSPACE/adf" "$ADF_BUILD_FACTORY_ID"
           npm run build -- export "$GITHUB_WORKSPACE/adf" "$ADF_BUILD_FACTORY_ID" ArmTemplate
 
-      - uses: azure/login@v2
+      - uses: azure/login@v3
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
@@ -286,7 +286,7 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
-      - uses: azure/login@v2
+      - uses: azure/login@v3
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
@@ -334,7 +334,7 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
-      - uses: azure/login@v2
+      - uses: azure/login@v3
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
