@@ -228,7 +228,7 @@ jobs:
           environment: ${{ inputs.environment }}
 
       - name: Stop triggers
-        uses: azure/powershell@v2
+        uses: azure/powershell@v3
         with:
           azPSVersion: latest
           inlineScript: |
@@ -261,7 +261,7 @@ jobs:
             dataFactory_properties_globalParameters_synapse_dedicated_enabled_value=${{ env.SYNAPSE_DEDICATED_ENABLED }}
 
       - name: Clean up and restart triggers
-        uses: azure/powershell@v2
+        uses: azure/powershell@v3
         with:
           azPSVersion: latest
           inlineScript: |
